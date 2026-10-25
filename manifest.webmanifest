@@ -1,0 +1,20 @@
+{
+  "name": "家計簿",
+  "short_name": "家計簿",
+  "description": "ブラウザだけで動く家計簿。データはこの端末の中だけに保存されます。",
+  "lang": "ja",
+  "start_url": "./index.html#/home",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f6f5f2",
+  "theme_color": "#2c6a88",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ],
+  "shortcuts": [
+    { "name": "記録する", "url": "./index.html#/input", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

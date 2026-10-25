@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>家計簿</title>
+  <meta name="description" content="ブラウザだけで動く家計簿。データはこの端末の中だけに保存されます。">
+  <meta name="theme-color" content="#f6f5f2">
+  <meta name="color-scheme" content="light dark">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="家計簿">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">本文へ移動</a>
+  <div id="app" class="app">
+    <aside class="sidebar" aria-label="メインメニュー">
+      <div class="brand"><span aria-hidden="true">📒</span> 家計簿</div>
+      <button type="button" class="btn btn-primary btn-block" data-act="add">＋ 記録する <kbd>N</kbd></button>
+      <nav>
+        <a href="#/home" data-nav="home"><span aria-hidden="true">🏠</span>ホーム</a>
+        <a href="#/list" data-nav="list"><span aria-hidden="true">📋</span>明細</a>
+        <a href="#/budget" data-nav="budget"><span aria-hidden="true">🎯</span>予算</a>
+        <a href="#/accounts" data-nav="accounts"><span aria-hidden="true">🏦</span>口座・資産</a>
+        <a href="#/analysis" data-nav="analysis"><span aria-hidden="true">📊</span>分析</a>
+        <a href="#/plans" data-nav="plans"><span aria-hidden="true">🔁</span>定期・分割</a>
+        <a href="#/badges" data-nav="badges"><span aria-hidden="true">🏅</span>バッジ</a>
+        <a href="#/settings" data-nav="settings"><span aria-hidden="true">⚙️</span>設定</a>
+      </nav>
+      <p class="sidebar-note">データはこのブラウザの中だけに保存されます。</p>
+    </aside>
+    <main id="main" tabindex="-1"></main>
+  </div>
+  <nav class="tabbar" aria-label="メインメニュー">
+    <a href="#/home" data-nav="home"><span aria-hidden="true">🏠</span>ホーム</a>
+    <a href="#/list" data-nav="list"><span aria-hidden="true">📋</span>明細</a>
+    <button type="button" class="tab-add" data-act="add" aria-label="記録する"><span aria-hidden="true">＋</span></button>
+    <a href="#/analysis" data-nav="analysis"><span aria-hidden="true">📊</span>分析</a>
+    <a href="#/menu" data-nav="menu" data-nav-also="budget accounts plans badges settings"><span aria-hidden="true">☰</span>メニュー</a>
+  </nav>
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+  <dialog id="modal" class="modal"></dialog>
+  <dialog id="confirm" class="confirm"></dialog>
+  <div id="overlay" class="overlay" hidden></div>
+  <noscript><p style="padding:2rem">この家計簿を使うには JavaScript を有効にしてください。</p></noscript>
+
+  <script src="js/util.js"></script>
+  <script src="js/idb.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/calc.js"></script>
+  <script src="js/receipts.js"></script>
+  <script src="js/io.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/views/home.js"></script>
+  <script src="js/views/input.js"></script>
+  <script src="js/views/list.js"></script>
+  <script src="js/views/budget.js"></script>
+  <script src="js/views/accounts.js"></script>
+  <script src="js/views/analysis.js"></script>
+  <script src="js/views/plans.js"></script>
+  <script src="js/views/settings.js"></script>
+  <script src="js/views/misc.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
