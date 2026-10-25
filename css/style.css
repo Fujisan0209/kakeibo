@@ -12,7 +12,8 @@
   --income: #1b65a6;
   --expense: #b8432a;
   --transfer: #5d6470;
-  --ok: #2e7d4f;
+  --ok: #26703f;
+  --danger-ink: #ffffff;
   --warn: #8a5d00;
   --warn-bg: #fff3d1;
   --warn-bar: #e0a100;
@@ -25,7 +26,8 @@
   --heat-1: #fde3c8;
   --heat-2: #f7b98a;
   --heat-3: #e7864f;
-  --heat-4: #c2552a;
+  --heat-4: #a8441c;
+  --heat-ink: #ffffff;
   --shadow: 0 1px 2px rgba(0, 0, 0, .05), 0 1px 8px rgba(0, 0, 0, .04);
   --radius: 14px;
   --radius-s: 9px;
@@ -37,7 +39,7 @@
     --bg: #15181c; --surface: #1e2227; --surface-2: #272c33; --text: #e9e7e4; --muted: #a6adb6; --border: #353b43;
     --primary: #6fb1d0; --primary-ink: #0e1a20; --primary-soft: #1d3440; --income: #72b4f2; --expense: #f39477; --transfer: #a6adb6;
     --ok: #74c69d; --warn: #f2c65c; --warn-bg: #3a3017; --warn-bar: #e0b040; --over: #ff8f84; --over-bg: #43201d; --over-bar: #f0675a;
-    --info-bg: #1d2c36; --focus: #8cc6ff;
+    --info-bg: #1d2c36; --focus: #8cc6ff; --danger-ink: #2a0d0a; --heat-ink: #15181c;
     --heat-0: #272c33; --heat-1: #4a3426; --heat-2: #7a4a2c; --heat-3: #b0603a; --heat-4: #e57d4e;
     --shadow: 0 1px 2px rgba(0, 0, 0, .4);
     color-scheme: dark;
@@ -47,7 +49,7 @@
   --bg: #15181c; --surface: #1e2227; --surface-2: #272c33; --text: #e9e7e4; --muted: #a6adb6; --border: #353b43;
   --primary: #6fb1d0; --primary-ink: #0e1a20; --primary-soft: #1d3440; --income: #72b4f2; --expense: #f39477; --transfer: #a6adb6;
   --ok: #74c69d; --warn: #f2c65c; --warn-bg: #3a3017; --warn-bar: #e0b040; --over: #ff8f84; --over-bg: #43201d; --over-bar: #f0675a;
-  --info-bg: #1d2c36; --focus: #8cc6ff;
+  --info-bg: #1d2c36; --focus: #8cc6ff; --danger-ink: #2a0d0a; --heat-ink: #15181c;
   --heat-0: #272c33; --heat-1: #4a3426; --heat-2: #7a4a2c; --heat-3: #b0603a; --heat-4: #e57d4e;
   --shadow: 0 1px 2px rgba(0, 0, 0, .4);
   color-scheme: dark;
@@ -66,6 +68,8 @@ h1, h2, h3 { line-height: 1.35; margin: 0; }
 h1 { font-size: 1.35rem; }
 a { color: var(--primary); }
 button, input, select, textarea { font: inherit; color: inherit; }
+/* iOS で入力欄にフォーカスしたとき拡大されないよう 16px 以上にする */
+input, select, textarea { font-size: 16px; }
 :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 6px; }
 .sr-only { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .skip-link { position: absolute; left: 8px; top: -60px; background: var(--surface); padding: 8px 12px; z-index: 100; border-radius: 8px; }
@@ -136,7 +140,7 @@ main { flex: 1; min-width: 0; padding: 24px 28px 48px; max-width: 1120px; outlin
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 .btn-primary { background: var(--primary); color: var(--primary-ink); border-color: var(--primary); }
 .btn-primary:hover { background: var(--primary); filter: brightness(1.07); }
-.btn-danger { background: var(--over); border-color: var(--over); color: #fff; }
+.btn-danger { background: var(--over); border-color: var(--over); color: var(--danger-ink); }
 .btn-danger:hover { background: var(--over); filter: brightness(1.08); }
 .btn-danger-ghost { color: var(--over); }
 .btn-small { min-height: 32px; padding: 4px 11px; font-size: .85rem; border-radius: 8px; }
@@ -366,8 +370,10 @@ details > summary { cursor: pointer; }
 .heat-0 { background: var(--heat-0); }
 .heat-1 { background: var(--heat-1); }
 .heat-2 { background: var(--heat-2); }
-.heat-3 { background: var(--heat-3); color: #fff; }
-.heat-4 { background: var(--heat-4); color: #fff; }
+.heat-3 { background: var(--heat-3); color: #1f2328; }
+.heat-4 { background: var(--heat-4); color: var(--heat-ink); }
+:root[data-theme="dark"] .heat-3 { color: var(--heat-ink); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .heat-3 { color: var(--heat-ink); } }
 .heat-legend { display: flex; gap: 4px; align-items: center; font-size: .75rem; color: var(--muted); justify-content: flex-end; }
 .heat-legend i { width: 16px; height: 12px; border-radius: 3px; display: inline-block; }
 
@@ -422,6 +428,9 @@ dialog { color: var(--text); }
   .cards-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
   .stat { padding: 10px; }
   .stat-value { font-size: 1.02rem; }
+  .cards-3:has(.stat-accent) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stat-accent { grid-column: 1 / -1; }
+  .stat-accent .stat-value { font-size: 1.3rem; }
   .stat-label { font-size: .75rem; }
   .grid-home, .grid-2 { grid-template-columns: minmax(0, 1fr); }
   .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
@@ -449,6 +458,17 @@ dialog { color: var(--text); }
   .cal-v { font-size: .62rem; }
   .table { font-size: .85rem; }
   .table th, .table td { padding: 7px 6px; }
+  /* タップしやすい大きさ（44px 以上） */
+  .btn, .btn-small, .seg-btn, .seg-small .seg-btn, .icon-btn, .chip, .chip-small, .toast-x, .toast-btn, .tab { min-height: 44px; }
+  .icon-btn, .toast-x { min-width: 44px; }
+  .link-small { display: inline-flex; align-items: center; min-height: 44px; padding: 0 6px; }
+  .cal-cell { min-height: 44px; }
+  /* 入力シート下部のボタン：保存を一番下の幅いっぱいに */
+  .sticky-actions .spacer { display: none; }
+  .sticky-actions .btn { flex: 1 1 auto; }
+  .sticky-actions .btn-primary { flex-basis: 100%; order: 10; }
+  /* 設定のタブは折り返して全部見えるように */
+  .tabs { flex-wrap: wrap; overflow-x: visible; }
 }
 @media (max-width: 380px) {
   .cards-3 { grid-template-columns: minmax(0, 1fr); }

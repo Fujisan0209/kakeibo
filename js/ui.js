@@ -15,6 +15,23 @@
     new URLSearchParams(qs || '').forEach((v, k) => { params[k] = v; });
     return { name, params };
   }
+  // 再描画で要素が作り直されても、同じボタンや入力欄にフォーカスを戻せるようにキーを作る
+  const FOCUS_ATTRS = ['id', 'data-select', 'data-edit', 'data-x', 'data-up', 'data-down', 'data-tab', 'data-ym', 'data-year', 'data-cattype', 'data-donut', 'data-rank', 'data-edit-cat', 'data-edit-tpl', 'data-tup', 'data-theme', 'data-month', 'data-edit-acc', 'data-edit-goal', 'data-tpl', 'data-tpledit', 'data-cat', 'data-pay', 'data-del-inst'];
+  function focusKey(el) {
+    el = el || document.activeElement;
+    if (!el || el === document.body || el.id === 'main') return null;
+    for (const a of FOCUS_ATTRS) {
+      const v = el.getAttribute && el.getAttribute(a);
+      if (v !== null && v !== undefined) return a === 'id' ? '#' + CSS.escape(v) : '[' + a + '="' + CSS.escape(v) + '"]';
+    }
+    return null;
+  }
+  function restoreFocus(key, root) {
+    if (!key) return;
+    const el = (root || document).querySelector(key);
+    if (el && document.activeElement !== el) el.focus({ preventScroll: true });
+  }
+
   let current = null;
   function render(keepScroll) {
     const { name, params } = parseHash();
@@ -22,6 +39,7 @@
     const main = document.getElementById('main');
     const y = window.scrollY;
     const changed = current !== name;
+    const fkey = !changed && main.contains(document.activeElement) ? focusKey() : null;
     current = name;
     try {
       // 毎回新しい要素に描くことで、イベントの二重登録を防ぐ
@@ -45,6 +63,7 @@
       if (!keepScroll) main.focus({ preventScroll: true });
     } else if (keepScroll) {
       window.scrollTo(0, y);
+      restoreFocus(fkey, main);
     }
   }
   function go(hash) {
@@ -56,9 +75,25 @@
 
   // ---- モーダル（<dialog>。スマホでは下からのシート）----
   let modalClose = null;
+  let returnKey = null;
+  // <dialog> は最前面（top layer）に出るので、開いている間はトーストをその中に移す
+  const toastBox = () => document.getElementById('toasts');
+  // ダイアログの中身を書き換える前に、トースト領域を body に戻しておく（一緒に消えないように）
+  function parkToasts() {
+    const box = toastBox();
+    if (box && box.parentNode !== document.body) document.body.appendChild(box);
+  }
+  function placeToasts() {
+    const box = toastBox();
+    const open = [document.getElementById('confirm'), document.getElementById('modal')].find((d) => d.open);
+    const parent = open || document.body;
+    if (box.parentNode !== parent) parent.appendChild(box);
+  }
   function modal(html, opts) {
     opts = opts || {};
     const dlg = document.getElementById('modal');
+    if (!dlg.open) returnKey = focusKey();
+    parkToasts();
     if (dlg.open) closeModal();
     if (modalClose) { const fn = modalClose; modalClose = null; fn(); }
     dlg.className = 'modal' + (opts.wide ? ' modal-wide' : '');
@@ -70,6 +105,7 @@
     dlg.querySelector('[data-close]').addEventListener('click', () => closeModal());
     modalClose = opts.onClose || null;
     dlg.showModal();
+    placeToasts();
     // 金額欄など [autofocus] はスマホでも選ぶ。それ以外の最初の要素はキーボードが出ないよう PC だけ
     const auto = dlg.querySelector('[autofocus]');
     const first = auto || (!matchMedia('(pointer: coarse)').matches && dlg.querySelector('.modal-body input, .modal-body select, .modal-body button'));
@@ -85,10 +121,16 @@
     dlg.addEventListener('close', () => {
       // close イベントは遅れて届くので、その間に次のモーダルが開いていたら中身を消さない
       if (dlg.open) return;
+      parkToasts();
       dlg.innerHTML = '';
+      placeToasts();
       const fn = modalClose;
       modalClose = null;
       if (fn) fn();
+      // 開く前のボタンにフォーカスを戻す（再描画で作り直されていても同じキーで探す）
+      const key = returnKey;
+      returnKey = null;
+      requestAnimationFrame(() => requestAnimationFrame(() => restoreFocus(key)));
     });
     // 背景クリックで閉じる
     dlg.addEventListener('mousedown', (e) => { if (e.target === dlg) closeModal(); });
@@ -99,17 +141,28 @@
     opts = opts || {};
     return new Promise((resolve) => {
       const dlg = document.getElementById('confirm');
-      dlg.innerHTML = '<form method="dialog" class="confirm-box"><p>' + h(message).replace(/\n/g, '<br>') + '</p>' +
+      parkToasts();
+      dlg.setAttribute('aria-labelledby', 'confirm-msg');
+      dlg.innerHTML = '<form method="dialog" class="confirm-box"><p id="confirm-msg">' + h(message).replace(/\n/g, '<br>') + '</p>' +
         '<div class="btn-row end"><button value="cancel" class="btn">' + h(opts.cancel || 'キャンセル') + '</button>' +
         '<button value="ok" class="btn ' + (opts.danger ? 'btn-danger' : 'btn-primary') + '" autofocus>' + h(opts.ok || 'OK') + '</button></div></form>';
-      const done = () => { dlg.removeEventListener('close', done); resolve(dlg.returnValue === 'ok'); };
+      const done = () => { dlg.removeEventListener('close', done); placeToasts(); resolve(dlg.returnValue === 'ok'); };
       dlg.returnValue = '';
       dlg.addEventListener('close', done);
       dlg.showModal();
+      placeToasts();
     });
   }
 
   // ---- トースト ----
+  // スクリーンリーダー向けのお知らせ（固定の aria-live 領域）
+  function announce(msg) {
+    const el = document.getElementById('sr-live');
+    if (!el) return;
+    el.textContent = '';
+    setTimeout(() => { el.textContent = msg; }, 50);
+  }
+
   function toast(msg, opts) {
     opts = opts || {};
     const box = document.getElementById('toasts');
@@ -117,9 +170,11 @@
     el.className = 'toast' + (opts.type ? ' toast-' + opts.type : '');
     el.setAttribute('role', opts.type === 'error' ? 'alert' : 'status');
     el.innerHTML = '<span>' + h(msg) + '</span>' + (opts.undo ? '<button type="button" class="toast-btn">元に戻す</button>' : '') +
+      (opts.action ? '<button type="button" class="toast-btn" data-action>' + h(opts.action.label) + '</button>' : '') +
       '<button type="button" class="toast-x" aria-label="閉じる">✕</button>';
     const remove = () => { el.classList.add('is-out'); setTimeout(() => el.remove(), 200); };
     if (opts.undo) el.querySelector('.toast-btn').addEventListener('click', () => { doUndo(); remove(); });
+    if (opts.action) el.querySelector('[data-action]').addEventListener('click', () => { opts.action.fn(); remove(); });
     el.querySelector('.toast-x').addEventListener('click', remove);
     box.appendChild(el);
     while (box.children.length > 3) box.firstChild.remove();
@@ -202,11 +257,11 @@
     const flags = [
       future ? '<span class="flag flag-plan">予定</span>' : '',
       t.recurringId ? '<span class="flag" title="定期">定期</span>' : '',
-      t.installment ? '<span class="flag" title="分割">分割 ' + t.installment.no + '/' + t.installment.count + '</span>' : '',
+      t.installment ? '<span class="flag" title="分割">分割 ' + h(t.installment.no + '/' + t.installment.count) + '</span>' : '',
       t.receiptId ? '<span class="flag" title="レシートあり">📎</span>' : '',
     ].join('');
     return '<li class="tx' + (future ? ' is-future' : '') + '" data-id="' + h(t.id) + '">' +
-      (opts.select ? '<label class="tx-check"><input type="checkbox" data-select="' + h(t.id) + '"' + (opts.checked ? ' checked' : '') + ' aria-label="選択"></label>' : '') +
+      (opts.select ? '<label class="tx-check"><input type="checkbox" data-select="' + h(t.id) + '"' + (opts.checked ? ' checked' : '') + ' aria-label="' + h(t.date + ' ' + txTitle(t) + ' ' + U.yen(t.amount) + ' を選択') + '"></label>' : '') +
       '<button type="button" class="tx-main" data-edit="' + h(t.id) + '">' +
       (t.type === 'transfer' ? '<span class="cat-icon" style="--c:#8a8f98" aria-hidden="true">⇄</span>' : catIcon(c)) +
       '<span class="tx-body"><span class="tx-title">' + h(txTitle(t)) + flags + '</span>' +
@@ -272,7 +327,7 @@
   }
 
   KB.ui = {
-    parseHash, render, refresh, go, modal, closeModal, initModal, confirm: confirmDlg, toast, act, doUndo, afterChange,
+    parseHash, render, refresh, go, focusKey, restoreFocus, announce, modal, closeModal, initModal, confirm: confirmDlg, toast, act, doUndo, afterChange,
     money, net, catIcon, txTitle, txRow, txList, progress, options, accOptions, localDate, applyTheme, TYPE_LABEL,
   };
 })();

@@ -2,6 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self' data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>家計簿</title>
   <meta name="description" content="ブラウザだけで動く家計簿。データはこの端末の中だけに保存されます。">
@@ -42,6 +43,7 @@
     <a href="#/menu" data-nav="menu" data-nav-also="budget accounts plans badges settings"><span aria-hidden="true">☰</span>メニュー</a>
   </nav>
   <div id="toasts" class="toasts" aria-live="polite"></div>
+  <div id="sr-live" class="sr-only" aria-live="polite" aria-atomic="true"></div>
   <dialog id="modal" class="modal"></dialog>
   <dialog id="confirm" class="confirm"></dialog>
   <div id="overlay" class="overlay" hidden></div>

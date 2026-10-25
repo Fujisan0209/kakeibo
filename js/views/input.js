@@ -82,7 +82,7 @@
           '<div class="field"><label for="f-count">回数</label><input id="f-count" type="number" min="2" max="120" inputmode="numeric" value="' + h(f.count) + '"></div>' +
           '<div class="field"><label for="f-start">初回の月</label><input id="f-start" type="month" value="' + h(f.startMonth) + '"></div>' +
           '<div class="field"><label for="f-day">毎月の日</label><input id="f-day" type="number" min="1" max="31" inputmode="numeric" value="' + h(f.day) + '"></div></div>' +
-          '<p class="hint" id="inst-preview">' + (preview ? '毎月 ' + h(U.yen(preview[1] !== undefined ? preview[1] : preview[0])) + '×' + f.count + '回' + (preview[0] !== preview[1] ? '（1回目のみ ' + h(U.yen(preview[0])) + '）' : '') + '。月の日数より大きい日は月末になります。' : '総額と回数（2〜120回）を入れてください') + '</p>';
+          '<p class="hint" id="inst-preview">' + (preview ? '毎月 ' + h(U.yen(preview[1] !== undefined ? preview[1] : preview[0])) + '×' + h(f.count) + '回' + (preview[0] !== preview[1] ? '（1回目のみ ' + h(U.yen(preview[0])) + '）' : '') + '。月の日数より大きい日は月末になります。' : '総額と回数（2〜120回）を入れてください') + '</p>';
       } else {
         html += '<div class="field"><label for="f-date">日付</label><div class="date-row"><input id="f-date" type="date" value="' + h(f.date) + '" required>' +
           '<button type="button" class="btn btn-small" data-date="0">今日</button><button type="button" class="btn btn-small" data-date="-1">昨日</button></div></div>';
@@ -299,6 +299,9 @@
       save(false);
     });
     draw();
+    // 金額欄にフォーカス（モーダルを開いた時点ではまだ中身がないため、描画後に行う）
+    const amt = form.querySelector('#f-amount');
+    if (amt) amt.focus();
     return { get keepOpen() { return keepOpen; } };
   }
 
@@ -312,7 +315,7 @@
     if (inst) {
       const plan = s.installments.find((p) => p.id === inst.planId);
       const future = s.transactions.filter((t) => t.installment && t.installment.planId === inst.planId && t.date > U.today()).length;
-      const body = KB.ui.modal((opts.planOnly ? '<p>分割払い「' + h(plan ? plan.name : '') + '」を削除します。</p>' : '<p>この明細は分割払い「' + h(plan ? plan.name : '') + '」の ' + inst.no + '/' + inst.count + ' 回目です。</p>') +
+      const body = KB.ui.modal((opts.planOnly ? '<p>分割払い「' + h(plan ? plan.name : '') + '」を削除します。</p>' : '<p>この明細は分割払い「' + h(plan ? plan.name : '') + '」の ' + h(inst.no + '/' + inst.count) + ' 回目です。</p>') +
         '<div class="stack">' + (opts.planOnly ? '' : '<button class="btn" data-x="one">この回だけ削除</button>') +
         '<button class="btn" data-x="future">今後の回（' + future + '件）とプランを削除</button>' +
         '<button class="btn btn-danger" data-x="all">すべての回とプランを削除</button></div>', { title: '分割払いの削除' });

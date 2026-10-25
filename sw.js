@@ -1,6 +1,6 @@
 /* Service Worker：アプリ本体をキャッシュしてオフラインでも動かす。
  * ファイルを変えたら VERSION を上げること（古いキャッシュが消え、更新が配信される）。 */
-const VERSION = 'kakeibo-v1.0.0';
+const VERSION = 'kakeibo-v1.0.1';
 const ASSETS = [
   './', './index.html', './manifest.webmanifest', './css/style.css',
   './js/util.js', './js/idb.js', './js/store.js', './js/calc.js', './js/receipts.js', './js/io.js', './js/charts.js', './js/ui.js',
@@ -10,7 +10,13 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(ASSETS)));
+  // HTTP キャッシュに残った古いファイルを拾わないよう、必ずネットワークから取る
+  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(ASSETS.map((u) => new Request(u, { cache: 'reload' })))));
+});
+
+// 画面の「更新する」ボタンから呼ばれる
+self.addEventListener('message', (e) => {
+  if (e.data && e.data.type === 'skipWaiting') self.skipWaiting();
 });
 
 self.addEventListener('activate', (e) => {

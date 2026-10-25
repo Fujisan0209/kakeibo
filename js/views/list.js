@@ -32,7 +32,7 @@
     const tags = KB.calc.allTags();
     let html = '<div class="page-head"><h1>明細</h1><div class="btn-row"><button class="btn" data-x="select" aria-pressed="' + selecting + '">' + (selecting ? '選択をやめる' : 'まとめて編集') + '</button>' +
       '<button class="btn btn-primary only-pc" data-act="add">＋ 記録する</button></div></div>';
-    html += '<form class="card filter" id="filter" role="search" onsubmit="return false">' +
+    html += '<form class="card filter" id="filter" role="search">' +
       '<div class="filter-main"><label class="sr-only" for="q-kw">キーワード</label><input id="q-kw" name="keyword" type="search" placeholder="🔍 メモ・お店・カテゴリ・#タグで検索" value="' + h(q.keyword) + '">' +
       '<label class="sr-only" for="q-sort">並べ替え</label><select id="q-sort" name="sort">' +
       [['date-desc', '日付が新しい順'], ['date-asc', '日付が古い順'], ['amount-desc', '金額が大きい順'], ['amount-asc', '金額が小さい順']].map(([v, l]) => '<option value="' + v + '"' + (q.sort === v ? ' selected' : '') + '>' + l + '</option>').join('') + '</select></div>' +
@@ -58,7 +58,8 @@
     lastList = list;
     let inc = 0, exp = 0;
     list.forEach((t) => { if (t.type === 'income') inc += t.amount; else if (t.type === 'expense') exp += t.amount; });
-    let html = '<div class="summary-bar" aria-live="polite"><span>' + U.fmt(list.length) + ' 件</span><span>収入 ' + KB.ui.net(inc) + '</span><span>支出 <span class="amt amt-expense">−' + h(U.yen(exp)) + '</span></span>' +
+    KB.ui.announce(U.fmt(list.length) + ' 件の明細');
+    let html = '<div class="summary-bar"><span>' + U.fmt(list.length) + ' 件</span><span>収入 ' + KB.ui.net(inc) + '</span><span>支出 <span class="amt amt-expense">−' + h(U.yen(exp)) + '</span></span>' +
       '<span class="spacer"></span><button class="btn btn-small" data-x="csv"' + (list.length ? '' : ' disabled') + '>この条件でCSV</button></div>';
     if (selecting) {
       const allOn = list.length > 0 && list.every((t) => selected.has(t.id));
@@ -77,12 +78,15 @@
     }
     if (list.length > shown) html += '<div class="center"><button class="btn" data-x="more">さらに表示（残り ' + U.fmt(list.length - shown) + ' 件）</button></div>';
     const box = el.querySelector('#results');
+    const fkey = box.contains(document.activeElement) ? KB.ui.focusKey() : null;
     box.innerHTML = html;
+    KB.ui.restoreFocus(fkey, box);
     if (selecting) box.querySelectorAll('[data-select]').forEach((c) => { c.checked = selected.has(c.dataset.select); });
   }
 
   function bind(el) {
     const form = el.querySelector('#filter');
+    form.addEventListener('submit', (e) => e.preventDefault());
     const update = () => {
       new FormData(form).forEach((v, k) => { q[k] = String(v); });
       shown = PAGE;

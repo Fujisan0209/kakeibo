@@ -96,6 +96,8 @@
     if (!out.activity || !Array.isArray(out.activity.entryDays)) out.activity = { entryDays: [] };
     if (!out.badges || typeof out.badges !== 'object') out.badges = {};
     const int = (x) => (Number.isFinite(+x) ? Math.round(+x) : 0);
+    const rng = (x, lo, hi, d) => { const v = Math.round(+x); return Number.isFinite(v) && v >= lo && v <= hi ? v : d; };
+    const str = (x) => (x === null || x === undefined ? '' : String(x));
     out.transactions = out.transactions
       .filter((t) => t && U.isValidDate(t.date) && ['expense', 'income', 'transfer'].includes(t.type))
       .map((t) => ({
@@ -112,14 +114,44 @@
         tags: Array.isArray(t.tags) ? t.tags.map(String).slice(0, 20) : [],
         receiptId: t.receiptId || null,
         recurringId: t.recurringId || null,
-        installment: t.installment || null,
-        createdAt: t.createdAt || new Date().toISOString(),
-        updatedAt: t.updatedAt || t.createdAt || new Date().toISOString(),
+        installment: t.installment && typeof t.installment === 'object'
+          ? { planId: str(t.installment.planId), no: rng(t.installment.no, 1, 120, 1), count: rng(t.installment.count, 1, 120, 1) } : null,
+        createdAt: str(t.createdAt) || new Date().toISOString(),
+        updatedAt: str(t.updatedAt) || str(t.createdAt) || new Date().toISOString(),
       }));
-    out.accounts.forEach((a) => {
-      a.initialBalance = int(a.initialBalance);
-      if (a.kind === 'card') a.card = Object.assign({ closingDay: 31, payDay: 27, payMonthOffset: 1, payAccountId: null }, a.card || {});
+    // 数値の欄は、読み込んだデータ（バックアップなど）に文字列が入っていても数値に直す
+    const ym = (x, d) => (/^\d{4}-\d{2}$/.test(x || '') ? x : d);
+    const KINDS = ['cash', 'bank', 'card', 'emoney'];
+    out.accounts = out.accounts.filter((a) => a && a.id).map((a) => {
+      const x = { id: str(a.id), name: str(a.name).slice(0, 20) || '口座', kind: KINDS.includes(a.kind) ? a.kind : 'cash', initialBalance: int(a.initialBalance), order: int(a.order), archived: !!a.archived };
+      if (x.kind === 'card') {
+        const c = a.card || {};
+        x.card = { closingDay: rng(c.closingDay, 1, 31, 31), payDay: rng(c.payDay, 1, 31, 27), payMonthOffset: c.payMonthOffset === 2 || c.payMonthOffset === '2' ? 2 : 1, payAccountId: c.payAccountId ? str(c.payAccountId) : null };
+      }
+      return x;
     });
+    out.categories = out.categories.filter((c) => c && c.id).map((c) => ({ id: str(c.id), type: c.type === 'income' ? 'income' : 'expense', name: str(c.name).slice(0, 20) || 'カテゴリ', icon: str(c.icon).slice(0, 4), color: U.safeColor(c.color), order: int(c.order), archived: !!c.archived }));
+    const tags = (v) => (Array.isArray(v) ? v.map(String).slice(0, 20) : []);
+    const TYPES = ['expense', 'income', 'transfer'];
+    out.recurring = out.recurring.filter((r) => r && r.id && TYPES.includes(r.type)).map((r) => Object.assign({}, r, {
+      id: str(r.id), name: str(r.name).slice(0, 30), amount: Math.abs(int(r.amount)), day: rng(r.day, 1, 31, 1), startMonth: ym(r.startMonth, U.thisMonth()),
+      endMonth: r.endMonth ? ym(r.endMonth, null) : null, lastDate: U.isValidDate(r.lastDate) ? r.lastDate : null, active: !!r.active, tags: tags(r.tags),
+    }));
+    out.installments = out.installments.filter((p) => p && p.id).map((p) => Object.assign({}, p, {
+      id: str(p.id), name: str(p.name).slice(0, 60), total: Math.abs(int(p.total)), count: rng(p.count, 1, 120, 1), day: rng(p.day, 1, 31, 1), startMonth: ym(p.startMonth, U.thisMonth()), tags: tags(p.tags),
+    }));
+    out.templates = out.templates.filter((t) => t && t.id && TYPES.includes(t.type)).map((t) => Object.assign({}, t, { id: str(t.id), name: str(t.name).slice(0, 20), amount: Math.abs(int(t.amount)), tags: tags(t.tags) }));
+    out.goals = out.goals.filter((g) => g && g.id).map((g) => ({ id: str(g.id), name: str(g.name).slice(0, 30), target: Math.abs(int(g.target)), accountIds: Array.isArray(g.accountIds) ? g.accountIds.map(String) : [], deadline: U.isValidDate(g.deadline) ? g.deadline : null }));
+    Object.keys(out.budgets).forEach((k) => {
+      const hist = Array.isArray(out.budgets[k]) ? out.budgets[k] : [];
+      out.budgets[k] = hist.filter((e) => e && /^\d{4}-\d{2}$/.test(e.from)).map((e) => ({ from: e.from, amount: e.amount === null ? null : Math.abs(int(e.amount)) }));
+    });
+    out.activity.entryDays = out.activity.entryDays.filter((d) => U.isValidDate(d));
+    Object.keys(out.badges).forEach((k) => { if (!U.isValidDate(out.badges[k])) delete out.badges[k]; });
+    const st = out.settings;
+    st.theme = ['auto', 'light', 'dark'].includes(st.theme) ? st.theme : 'auto';
+    st.carryoverSince = st.carryoverSince ? ym(st.carryoverSince, null) : null;
+    st.reminder.time = /^\d{2}:\d{2}$/.test(st.reminder.time || '') ? st.reminder.time : '21:00';
     out.schemaVersion = SCHEMA_VERSION;
     return out;
   }
@@ -229,12 +261,13 @@
    * fn が false を返したら変更なしとみなす。
    */
   function mutate(label, fn, opts) {
-    const snap = JSON.stringify(state);
+    // Undo しない小さな変更（設定など）は、スナップショットを取らずに軽くする
+    const snap = opts && opts.noUndo ? null : JSON.stringify(state);
     let result;
     try {
       result = fn(state);
     } catch (e) {
-      state = JSON.parse(snap); // 途中で失敗したら元に戻す
+      if (snap) state = JSON.parse(snap); // 途中で失敗したら元に戻す
       throw e;
     }
     if (result === false) return result;
@@ -244,10 +277,10 @@
     }
     version++;
     const ok = save();
-    if (!ok) {
+    if (!ok && snap) {
       // 保存できない変更は取り消す（画面と保存内容の食い違いを防ぐ）
       state = JSON.parse(snap);
-      if (!(opts && opts.noUndo)) undoStack.pop();
+      undoStack.pop();
       version++;
       emit('change', { label: label, failed: true });
       throw new Error('保存できませんでした。ブラウザの保存容量が不足している可能性があります。レシート画像を減らすか、バックアップ後に古いデータを整理してください。');

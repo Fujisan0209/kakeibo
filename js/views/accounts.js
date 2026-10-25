@@ -41,7 +41,7 @@
       html += '<section class="card"><h2 class="card-title">クレジットカードの引き落とし予測</h2>';
       cards.forEach((a) => {
         const c = a.card || {};
-        html += '<h3 class="sub-title">💳 ' + h(a.name) + ' <small class="muted">締め日 ' + (c.closingDay >= 31 ? '月末' : c.closingDay + '日') + '・支払日 ' + (c.payMonthOffset === 2 ? '翌々月' : '翌月') + (c.payDay >= 31 ? '末日' : c.payDay + '日') + '</small></h3>';
+        html += '<h3 class="sub-title">💳 ' + h(a.name) + ' <small class="muted">締め日 ' + h((c.closingDay >= 31 ? '月末' : c.closingDay + '日') + '・支払日 ' + (c.payMonthOffset === 2 ? '翌々月' : '翌月') + (c.payDay >= 31 ? '末日' : c.payDay + '日')) + '</small></h3>';
         const fc = C().cardForecast(a);
         if (!fc.length) html += '<p class="muted">予定はありません。</p>';
         else {

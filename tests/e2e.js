@@ -314,6 +314,62 @@ async function newPage(b, opts) {
     await p.context().close();
   }
 
+  // ---------- 2b. セキュリティと操作性 ----------
+  console.log('セキュリティと操作性');
+  {
+    const p = await newPage(b, { viewport: { width: 1280, height: 860 } });
+    const fired = [];
+    p.on('dialog', (d) => { fired.push(d.message()); d.dismiss(); });
+    await p.goto(BASE);
+    await p.click('text=空の状態で始める');
+    // 悪意のある値を入れたバックアップを復元しても、スクリプトが動かない
+    await p.evaluate(async () => {
+      const d = JSON.parse(KB.store.serialize());
+      const x = '<img src=x onerror=alert(1)>';
+      d.transactions.push({ id: 'z' + x, type: 'expense', date: KB.util.today(), amount: 1, categoryId: 'c_ex0', accountId: 'a_card', tags: [x], memo: x, payee: x, method: x, installment: { planId: 'p', no: x, count: x } });
+      d.accounts[2].card.closingDay = x; d.accounts[2].card.payDay = x; d.accounts[2].name = x;
+      d.recurring.push({ id: 'r', name: x, type: 'expense', amount: x, day: x, startMonth: x, categoryId: 'c_ex0', accountId: 'a_cash', active: true, memo: x });
+      d.installments.push({ id: 'p', name: x, total: 100, count: x, startMonth: '2024-01', day: x, categoryId: x });
+      d.templates.push({ id: 't', name: x, type: 'expense', amount: x, categoryId: 'c_ex0', accountId: 'a_cash', memo: x });
+      d.goals.push({ id: 'g', name: x, target: x, accountIds: ['a_bank'] });
+      d.categories[0].color = 'red;background:url(x)'; d.categories[0].icon = x; d.categories[1].name = x;
+      await KB.io.restore({ data: d });
+    });
+    for (const r of ['home', 'list', 'accounts', 'plans', 'analysis', 'budget', 'settings', 'badges']) {
+      await p.goto(BASE + '#/' + r);
+      await p.waitForTimeout(120);
+    }
+    await p.evaluate(() => KB.views.input.open({ id: KB.store.state.transactions[0].id }));
+    await p.waitForTimeout(150);
+    check('悪意のある値でもスクリプトが動かない', fired.length === 0 && (await p.locator('img[src="x"]').count()) === 0, fired);
+    await p.evaluate(() => KB.ui.closeModal());
+    // 入力シートを開くと金額欄にフォーカス
+    await p.goto(BASE + '#/home');
+    await p.click('.sidebar [data-act="add"]');
+    await p.waitForTimeout(100);
+    check('入力シートで金額欄にフォーカス', (await p.evaluate(() => document.activeElement && document.activeElement.id)) === 'f-amount');
+    // 「保存して続ける」のトーストがモーダルの前に見える
+    await p.fill('#f-amount', '100');
+    await p.click('[data-again]');
+    await p.waitForTimeout(150);
+    check('モーダル表示中もトーストが見える', await p.evaluate(() => { const t = document.querySelector('.toast'); return !!t && !!t.closest('dialog[open]'); }));
+    await p.keyboard.press('Escape');
+    await p.waitForTimeout(100);
+    check('モーダルを閉じたらトーストは body に戻る', await p.evaluate(() => document.getElementById('toasts').parentNode === document.body));
+    check('エラーなし', !p.errors.length, p.errors);
+    await p.context().close();
+  }
+  // file:// で開いても動く（CSP があっても）
+  {
+    const p = await newPage(b, { viewport: { width: 1280, height: 860 } });
+    await p.goto('file://' + path.resolve(__dirname, '..', 'index.html'));
+    await p.click('text=サンプルデータを入れて試す');
+    await p.waitForTimeout(300);
+    check('file:// で開いて動く', (await p.evaluate(() => KB.store.state.transactions.length)) > 50 && (await p.locator('.stat').count()) >= 3);
+    check('file:// でエラーなし', !p.errors.length, p.errors);
+    await p.context().close();
+  }
+
   // ---------- 3. スクリーンショット（PC・スマホ、ライト・ダーク）----------
   console.log('スクリーンショット');
   for (const [name, opts] of [

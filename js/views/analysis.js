@@ -14,8 +14,8 @@
     if (params.tab) tab = params.tab;
     if (!ym) ym = U.thisMonth();
     if (!year) year = Number(U.today().slice(0, 4));
-    let html = '<div class="page-head"><h1>分析</h1><div class="seg seg-small" role="tablist">' +
-      [['month', '月ごと'], ['year', '年間レポート']].map(([k, l]) => '<button role="tab" aria-selected="' + (tab === k) + '" class="seg-btn' + (tab === k ? ' is-on' : '') + '" data-tab="' + k + '">' + l + '</button>').join('') + '</div></div>';
+    let html = '<div class="page-head"><h1>分析</h1><div class="seg seg-small" role="group" aria-label="表示">' +
+      [['month', '月ごと'], ['year', '年間レポート']].map(([k, l]) => '<button aria-pressed="' + (tab === k) + '" class="seg-btn' + (tab === k ? ' is-on' : '') + '" data-tab="' + k + '">' + l + '</button>').join('') + '</div></div>';
     html += tab === 'year' ? yearView() : monthView();
     return html;
   }
@@ -99,7 +99,7 @@
   function rankList(rows, label, href) {
     if (!rows.length) return '<p class="empty">記録がありません</p>';
     const max = rows[0].amount || 1;
-    return '<ol class="rank">' + rows.map((r, i) => '<li><a href="' + h(href(r)) + '"><span class="rank-no">' + (i + 1) + '</span><span class="grow"><span class="rank-label">' + h(label(r)) + ' <small class="muted">' + r.count + '件</small></span>' +
+    return '<ol class="rank">' + rows.map((r, i) => '<li><a href="' + h(href(r)) + '"><span class="rank-no">' + (i + 1) + '</span><span class="grow"><span class="rank-label">' + h(label(r)) + ' <small class="muted">' + h(r.count) + '件</small></span>' +
       '<span class="rank-bar"><span style="width:' + Math.max(2, Math.round((r.amount / max) * 100)) + '%"></span></span></span><span class="num">' + h(U.yen(r.amount)) + '</span></a></li>').join('') + '</ol>';
   }
 
@@ -114,13 +114,13 @@
     const th = [q(0.25), q(0.5), q(0.75)];
     const lvl = (v) => (!v ? 0 : v <= th[0] ? 1 : v <= th[1] ? 2 : v <= th[2] ? 3 : 4);
     const today = U.today();
-    let html = '<div class="cal" role="grid" aria-label="' + h(U.fmtMonth(ym)) + 'の日ごとの支出"><div class="cal-row cal-head" role="row">' + U.WD.map((w, i) => '<span role="columnheader" class="' + (i === 0 ? 'sun' : i === 6 ? 'sat' : '') + '">' + w + '</span>').join('') + '</div><div class="cal-row" role="row">';
-    for (let i = 0; i < first; i++) html += '<span class="cal-cell is-blank" role="gridcell"></span>';
+    let html = '<div class="cal" role="group" aria-label="' + h(U.fmtMonth(ym)) + 'の日ごとの支出"><div class="cal-row cal-head" aria-hidden="true">' + U.WD.map((w, i) => '<span class="' + (i === 0 ? 'sun' : i === 6 ? 'sat' : '') + '">' + w + '</span>').join('') + '</div><div class="cal-row">';
+    for (let i = 0; i < first; i++) html += '<span class="cal-cell is-blank" aria-hidden="true"></span>';
     for (let d = 1; d <= dim; d++) {
       const ds = ym + '-' + U.pad(d);
       const v = days[ds] || 0;
-      if ((first + d - 1) % 7 === 0 && d !== 1) html += '</div><div class="cal-row" role="row">';
-      html += '<a role="gridcell" class="cal-cell heat-' + lvl(v) + (ds === today ? ' is-today' : '') + '" href="#/list?from=' + ds + '&to=' + ds + '" aria-label="' + h(U.fmtDate(ds) + ' 支出 ' + U.yen(v)) + '"><span class="cal-d">' + d + '</span><span class="cal-v">' + (v ? h(KB.charts.short(v)) : '') + '</span></a>';
+      if ((first + d - 1) % 7 === 0 && d !== 1) html += '</div><div class="cal-row">';
+      html += '<a class="cal-cell heat-' + lvl(v) + (ds === today ? ' is-today' : '') + '" href="#/list?from=' + ds + '&to=' + ds + '" aria-label="' + h(U.fmtDate(ds) + ' 支出 ' + U.yen(v)) + '"><span class="cal-d">' + d + '</span><span class="cal-v">' + (v ? h(KB.charts.short(v)) : '') + '</span></a>';
     }
     html += '</div></div>';
     const total = Object.values(days).reduce((a, b) => a + b, 0);

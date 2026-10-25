@@ -23,7 +23,7 @@
         const next = C().occurrences(r, r.lastDate ? U.addDays(r.lastDate, 1) : r.startMonth + '-01', U.addDays(today, 400))[0];
         html += '<li class="plan-row' + (r.active ? '' : ' is-off') + '">' + (r.type === 'transfer' ? '<span class="cat-icon" style="--c:#8a8f98">⇄</span>' : KB.ui.catIcon(c)) +
           '<span class="grow"><strong>' + h(r.name) + '</strong> ' + (r.active ? '' : '<span class="flag">停止中</span>') +
-          '<span class="muted small">' + TL[r.type] + '・' + dayLabel(r.day) + '・' + h((ST().acc(r.accountId) || { name: '口座なし' }).name) + (r.type === 'transfer' ? ' → ' + h((ST().acc(r.toAccountId) || { name: '口座なし' }).name) : '') +
+          '<span class="muted small">' + TL[r.type] + '・' + h(dayLabel(r.day)) + '・' + h((ST().acc(r.accountId) || { name: '口座なし' }).name) + (r.type === 'transfer' ? ' → ' + h((ST().acc(r.toAccountId) || { name: '口座なし' }).name) : '') +
           (next && r.active ? '・次回 ' + h(U.fmtDate(next, next.slice(0, 4) !== today.slice(0, 4))) : '') + (r.endMonth ? '・' + h(U.fmtMonth(r.endMonth)) + 'まで' : '') + '</span></span>' +
           KB.ui.money({ type: r.type, amount: r.amount }) + '<button class="btn btn-small" data-edit="' + h(r.id) + '">編集</button></li>';
       });
@@ -40,7 +40,7 @@
         const paid = txs.filter((t) => t.date <= today);
         const rest = txs.filter((t) => t.date > today).reduce((x, t) => x + t.amount, 0);
         html += '<li class="plan-row">' + KB.ui.catIcon(ST().cat(p.categoryId)) + '<span class="grow"><strong>' + h(p.name) + '</strong>' +
-          '<span class="muted small">総額 ' + h(U.yen(p.total)) + '・' + p.count + '回・' + h(U.fmtMonth(p.startMonth)) + 'から・' + h((ST().acc(p.accountId) || { name: '' }).name) + '</span>' +
+          '<span class="muted small">総額 ' + h(U.yen(p.total)) + '・' + h(p.count) + '回・' + h(U.fmtMonth(p.startMonth)) + 'から・' + h((ST().acc(p.accountId) || { name: '' }).name) + '</span>' +
           KB.ui.progress(txs.length ? paid.length / txs.length : 0, 'ok', p.name + 'の支払い状況') +
           '<span class="small">支払い済み ' + paid.length + '/' + txs.length + '回・残り ' + h(U.yen(rest)) + '</span></span>' +
           '<a class="btn btn-small" href="#/list?keyword=' + encodeURIComponent(p.memo || p.name) + '">明細</a><button class="btn btn-small btn-danger-ghost" data-del-inst="' + h(p.id) + '">削除</button></li>';

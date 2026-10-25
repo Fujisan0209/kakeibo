@@ -12,8 +12,8 @@
 
   function render(params) {
     if (params.tab && TABS.some((t) => t[0] === params.tab)) tab = params.tab;
-    let html = '<div class="page-head"><h1>設定</h1></div><div class="tabs" role="tablist">' +
-      TABS.map(([k, l]) => '<button role="tab" aria-selected="' + (tab === k) + '" class="tab' + (tab === k ? ' is-on' : '') + '" data-tab="' + k + '">' + l + '</button>').join('') + '</div>';
+    let html = '<div class="page-head"><h1>設定</h1></div><div class="tabs" role="group" aria-label="設定の項目">' +
+      TABS.map(([k, l]) => '<button aria-pressed="' + (tab === k) + '" class="tab' + (tab === k ? ' is-on' : '') + '" data-tab="' + k + '">' + l + '</button>').join('') + '</div>';
     html += ({ categories, templates, display, reminder, data })[tab]();
     return html;
   }

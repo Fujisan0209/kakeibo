@@ -11,6 +11,7 @@
     el.innerHTML = html;
     el.hidden = false;
     document.getElementById('app').setAttribute('inert', '');
+    document.querySelector('.tabbar').setAttribute('inert', '');
     return el;
   }
   function hideOverlay() {
@@ -18,6 +19,7 @@
     el.hidden = true;
     el.innerHTML = '';
     document.getElementById('app').removeAttribute('inert');
+    document.querySelector('.tabbar').removeAttribute('inert');
   }
 
   // ---- 読み込みエラー時の画面（データを上書きしない）----
@@ -217,6 +219,19 @@
   }
 
   // ---- PWA ----
+  // 新しいバージョンが待機中なら「更新する」を出す。押すと切り替えて再読み込みする
+  function showUpdate(worker) {
+    KB.ui.toast('新しいバージョンがあります', { ms: 60000, action: { label: '更新する', fn: () => { updateRequested = true; worker.postMessage({ type: 'skipWaiting' }); } } });
+  }
+  // 「更新する」を押したときだけ再読み込みする（初回の有効化では読み込み直さない）
+  let updateRequested = false;
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!updateRequested) return;
+      updateRequested = false;
+      location.reload();
+    });
+  }
   if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('sw.js').then((reg) => {
@@ -224,11 +239,10 @@
           const w = reg.installing;
           if (!w) return;
           w.addEventListener('statechange', () => {
-            if (w.state === 'installed' && navigator.serviceWorker.controller) {
-              KB.ui.toast('新しいバージョンがあります。ページを再読み込みすると更新されます。', { ms: 10000 });
-            }
+            if (w.state === 'installed' && navigator.serviceWorker.controller) showUpdate(w);
           });
         });
+        if (reg.waiting && navigator.serviceWorker.controller) showUpdate(reg.waiting);
       }).catch((e) => console.warn('Service Worker を登録できませんでした', e));
     });
   }
