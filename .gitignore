@@ -1,0 +1,16 @@
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+
+# Dependencies / build
+node_modules/
+dist/
+
+# Local backups (家計データを誤って公開しないため)
+*.backup.json
+backup/
