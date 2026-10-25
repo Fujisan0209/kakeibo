@@ -199,8 +199,12 @@
     document.querySelectorAll('[data-act="add"]').forEach((b) => b.addEventListener('click', () => KB.views.input.open({})));
     // 1分ごとにリマインダーと日付の変わり目を確認
     setInterval(() => { daily(); checkReminder(); }, 60 * 1000);
+    // 5分以上ほかのアプリに切り替えていたら、ロックをかけ直す
+    let hiddenAt = 0;
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') { daily(); checkReminder(); KB.ui.refresh(); }
+      if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return; }
+      if (hiddenAt && Date.now() - hiddenAt > 5 * 60 * 1000 && !locked && lock()) return;
+      daily(); checkReminder(); KB.ui.refresh();
     });
     checkReminder();
     // 使われていないレシート画像の掃除と、保存領域の永続化リクエスト

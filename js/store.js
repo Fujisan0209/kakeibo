@@ -360,7 +360,7 @@
       const d1 = U.dayInMonth(ym, 1);
       if (d1 <= now) {
         s.transactions.push({ id: U.uid('t_'), type: 'transfer', date: d1, amount: 30000, categoryId: null, accountId: 'a_bank', toAccountId: 'a_cash', method: '', memo: 'ATM 引き出し', tags: [], receiptId: null, recurringId: null, installment: null, createdAt: d1 + 'T12:00:00.000Z', updatedAt: d1 + 'T12:00:00.000Z' });
-        s.transactions.push({ id: U.uid('t_'), type: 'transfer', date: d1, amount: 5000, categoryId: null, accountId: 'a_bank', toAccountId: 'a_emoney', method: '', memo: 'チャージ', tags: [], receiptId: null, recurringId: null, installment: null, createdAt: d1 + 'T12:00:00.000Z', updatedAt: d1 + 'T12:00:00.000Z' });
+        s.transactions.push({ id: U.uid('t_'), type: 'transfer', date: d1, amount: 15000, categoryId: null, accountId: 'a_bank', toAccountId: 'a_emoney', method: '', memo: 'チャージ', tags: [], receiptId: null, recurringId: null, installment: null, createdAt: d1 + 'T12:00:00.000Z', updatedAt: d1 + 'T12:00:00.000Z' });
       }
       if (i === 3) {
         const d = U.dayInMonth(ym, 12);
@@ -377,20 +377,29 @@
     s.recurring.push({ id: 'r_phone', name: 'スマホ代', type: 'expense', amount: 3980, day: 20, categoryId: 'c_ex5', accountId: 'a_card', toAccountId: null, method: 'クレジットカード', memo: 'スマホ代', tags: [], startMonth: rentStart, endMonth: null, lastDate: null, active: true });
     // 給与は過去分が直接入っているので、来月以降を定期にする
     s.recurring.push({ id: 'r_salary', name: '給与', type: 'income', amount: 280000, day: 25, categoryId: 'c_in0', accountId: 'a_bank', toAccountId: null, method: '銀行振込', memo: '給与', tags: [], startMonth: U.dayInMonth(cur, 25) <= now ? U.addMonths(cur, 1) : cur, endMonth: null, lastDate: null, active: true });
-    // カード引き落とし（振替）
-    s.recurring.push({ id: 'r_cardpay', name: 'カード引き落とし（目安）', type: 'transfer', amount: 60000, day: 10, categoryId: null, accountId: 'a_bank', toAccountId: 'a_card', method: '', memo: 'カード引き落とし', tags: [], startMonth: rentStart, endMonth: null, lastDate: null, active: true });
     // 予算
     const from = start;
     [['c_ex0', 45000], ['c_ex1', 5000], ['c_ex2', 8000], ['c_ex3', 72000], ['c_ex5', 5000], ['c_ex7', 15000], ['c_ex8', 10000]].forEach(([id, amt]) => {
       s.budgets[id] = [{ from, amount: amt }];
     });
     s.goals.push({ id: U.uid('g_'), name: '旅行資金', target: 1500000, accountIds: ['a_bank'], deadline: U.addMonths(cur, 6) + '-01' });
-    s.settings.sampleLoaded = true;
-    // 連続記録のサンプル（昨日までの5日間）
-    for (let i = 5; i >= 1; i--) s.activity.entryDays.push(U.addDays(now, -i));
     const plan = { id: 'i_pc', name: 'ノートPC', total: 158000, count: 12, startMonth: U.addMonths(cur, -2), day: 10, categoryId: 'c_ex7', accountId: 'a_card', method: 'クレジットカード', payee: '家電量販店', memo: 'ノートPC（分割）', tags: ['PC'], createdAt: new Date().toISOString() };
     s.installments.push(plan);
     KB.calc.installmentTxs(plan).forEach((t) => s.transactions.push(t));
+    KB.calc.generateRecurring(s); // 定期の過去分も先に作る
+    // カードの引き落とし：締め15日・翌月10日払いで、支払日が過ぎた請求を振替として記録
+    for (let i = 0; i < 6; i++) {
+      const ym = U.addMonths(start, i);
+      const from = U.addDays(U.dayInMonth(U.addMonths(ym, -1), 15), 1), to = U.dayInMonth(ym, 15);
+      const pay = U.dayInMonth(U.addMonths(ym, 1), 10);
+      if (pay > now) continue;
+      const amt = s.transactions.filter((t) => t.type === 'expense' && t.accountId === 'a_card' && t.date >= from && t.date <= to).reduce((x, t) => x + t.amount, 0);
+      if (amt > 0) s.transactions.push({ id: U.uid('t_'), type: 'transfer', date: pay, amount: amt, categoryId: null, accountId: 'a_bank', toAccountId: 'a_card', method: '', payee: '', memo: 'カード引き落とし', tags: [], receiptId: null, recurringId: null, installment: null, createdAt: pay + 'T12:00:00.000Z', updatedAt: pay + 'T12:00:00.000Z' });
+    }
+    s.settings.sampleLoaded = true;
+    // 連続記録のサンプル（昨日までの5日間）
+    for (let i = 5; i >= 1; i--) s.activity.entryDays.push(U.addDays(now, -i));
+
   }
 
   KB.store = {
