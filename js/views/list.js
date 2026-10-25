@@ -86,6 +86,7 @@
     const update = () => {
       new FormData(form).forEach((v, k) => { q[k] = String(v); });
       shown = PAGE;
+      selected.clear(); // 条件を変えたら選択を解除（見えていない明細を操作しないように）
       results(el);
     };
     form.addEventListener('input', U.debounce(update, 200));
@@ -164,11 +165,11 @@
     body.querySelector('[data-ok]').addEventListener('click', () => {
       const id = body.querySelector('#b-acc').value;
       KB.ui.closeModal();
-      let skipped = 0;
+      const skipped = ST().state.transactions.filter((t) => selected.has(t.id) && t.type === 'transfer' && t.toAccountId === id).length;
       KB.ui.act('口座の一括変更', (s) => {
         s.transactions.forEach((t) => {
           if (!selected.has(t.id)) return;
-          if (t.type === 'transfer' && t.toAccountId === id) { skipped++; return; } // 同じ口座同士の振替にはしない
+          if (t.type === 'transfer' && t.toAccountId === id) return; // 同じ口座同士の振替にはしない
           t.accountId = id; t.updatedAt = new Date().toISOString();
         });
       }, '口座を変更しました' + (skipped ? '（振替先と同じになる ' + skipped + ' 件は変更していません）' : ''));

@@ -44,7 +44,7 @@
       receiptId: editing ? editing.receiptId : null,
       count: 3,
       startMonth: U.thisMonth(),
-      day: Math.min(28, Number((opts.date || U.today()).slice(8))),
+      day: Number((opts.date || U.today()).slice(8)),
     };
     if (opts.mode === 'installment' && !editing && f.type === 'expense') f.mode = 'installment';
     if (opts.prefill) Object.assign(f, opts.prefill);
@@ -59,7 +59,6 @@
         const keep = editing && ST().cat(f.categoryId) && ST().cat(f.categoryId).type === f.type;
         if (!keep) f.categoryId = cats[0] ? cats[0].id : null;
       }
-      const accs = ST().accs();
       const acc = ST().acc(f.accountId);
       if (!f.method && acc) f.method = ST().KIND_METHOD[acc.kind] || '';
       const tpls = s.templates.filter((t) => t.type === f.type);
@@ -88,6 +87,8 @@
         html += '<div class="field"><label for="f-date">日付</label><div class="date-row"><input id="f-date" type="date" value="' + h(f.date) + '" required>' +
           '<button type="button" class="btn btn-small" data-date="0">今日</button><button type="button" class="btn btn-small" data-date="-1">昨日</button></div></div>';
       }
+      if (!ST().accs().length) html += '<p class="banner banner-warn">口座がありません。<a href="#/accounts" data-closelink>口座・資産</a>で口座を追加してください。</p>';
+      if (f.type !== 'transfer' && !cats.length) html += '<p class="banner banner-warn">' + (f.type === 'income' ? '収入' : '支出') + 'のカテゴリがありません。<a href="#/settings?tab=categories" data-closelink>カテゴリを追加</a>してください。</p>';
       if (f.type !== 'transfer') {
         html += '<fieldset class="field"><legend>カテゴリ <a href="#/settings?tab=categories" class="link-small" data-closelink>編集</a></legend><div class="cat-grid">' +
           cats.map((c) => '<label class="cat-opt' + (c.id === f.categoryId ? ' is-on' : '') + '"><input type="radio" name="cat" value="' + h(c.id) + '"' + (c.id === f.categoryId ? ' checked' : '') + '>' + KB.ui.catIcon(c) + '<span>' + h(c.name) + '</span></label>').join('') +
@@ -95,9 +96,9 @@
           '</div></fieldset>';
       }
       html += '<div class="grid-2">';
-      html += '<div class="field"><label for="f-acc">' + (f.type === 'transfer' ? '振替元の口座' : f.type === 'income' ? '入金先の口座' : '支払う口座') + '</label><select id="f-acc">' + KB.ui.options(accs, f.accountId) + '</select></div>';
+      html += '<div class="field"><label for="f-acc">' + (f.type === 'transfer' ? '振替元の口座' : f.type === 'income' ? '入金先の口座' : '支払う口座') + '</label><select id="f-acc">' + KB.ui.accOptions(f.accountId) + '</select></div>';
       if (f.type === 'transfer') {
-        html += '<div class="field"><label for="f-to">振替先の口座</label><select id="f-to">' + KB.ui.options(accs.filter((a) => a.id !== f.accountId), f.toAccountId, { empty: '選んでください' }) + '</select></div>';
+        html += '<div class="field"><label for="f-to">振替先の口座</label><select id="f-to">' + KB.ui.accOptions(f.toAccountId, { exclude: f.accountId, empty: '選んでください' }) + '</select></div>';
       } else {
         html += '<div class="field"><label for="f-method">支払い方法</label><select id="f-method">' + ['<option value="">（なし）</option>'].concat(ST().METHODS.map((m) => '<option' + (m === f.method ? ' selected' : '') + '>' + h(m) + '</option>')).join('') + '</select></div>';
       }
@@ -279,10 +280,20 @@
           const p = Math.max(0, t.value.length - fromEnd);
           try { t.setSelectionRange(p, p); } catch (_) { /* ignore */ }
         }
-        if (f.mode === 'installment') { read(); const pv = form.querySelector('#inst-preview'); if (pv) { const n2 = U.parseYen(f.amount); pv.textContent = n2 > 0 && f.count >= 2 ? '毎月 ' + U.yen(Math.floor(n2 / f.count)) + '×' + f.count + '回（端数は1回目に加算）' : ''; } }
+        if (f.mode === 'installment') instPreview();
       }
-      if (t.id === 'f-count' && f.mode === 'installment') { read(); }
+      if (t.id === 'f-count' && f.mode === 'installment') instPreview();
     });
+    // 分割払いの毎月の額のプレビュー（金額・回数の入力に合わせて更新）
+    function instPreview() {
+      read();
+      const pv = form.querySelector('#inst-preview');
+      if (!pv) return;
+      const n2 = U.parseYen(f.amount);
+      if (!(n2 > 0 && f.count >= 2 && f.count <= 120)) { pv.textContent = '総額と回数（2〜120回）を入れてください'; return; }
+      const a = KB.calc.splitAmounts(n2, f.count);
+      pv.textContent = '毎月 ' + U.yen(a[1]) + '×' + f.count + '回' + (a[0] !== a[1] ? '（1回目のみ ' + U.yen(a[0]) + '）' : '') + '。月の日数より大きい日は月末になります。';
+    }
     form.addEventListener('submit', (e) => {
       e.preventDefault();
       save(false);
@@ -292,7 +303,8 @@
   }
 
   // 削除（分割払いの回なら、プラン全体の削除も選べる）
-  async function remove(ids) {
+  async function remove(ids, opts) {
+    opts = opts || {};
     const s = ST().state;
     const list = s.transactions.filter((t) => ids.includes(t.id));
     if (!list.length) return;
@@ -300,8 +312,8 @@
     if (inst) {
       const plan = s.installments.find((p) => p.id === inst.planId);
       const future = s.transactions.filter((t) => t.installment && t.installment.planId === inst.planId && t.date > U.today()).length;
-      const body = KB.ui.modal('<p>この明細は分割払い「' + h(plan ? plan.name : '') + '」の ' + inst.no + '/' + inst.count + ' 回目です。</p>' +
-        '<div class="stack"><button class="btn" data-x="one">この回だけ削除</button>' +
+      const body = KB.ui.modal((opts.planOnly ? '<p>分割払い「' + h(plan ? plan.name : '') + '」を削除します。</p>' : '<p>この明細は分割払い「' + h(plan ? plan.name : '') + '」の ' + inst.no + '/' + inst.count + ' 回目です。</p>') +
+        '<div class="stack">' + (opts.planOnly ? '' : '<button class="btn" data-x="one">この回だけ削除</button>') +
         '<button class="btn" data-x="future">今後の回（' + future + '件）とプランを削除</button>' +
         '<button class="btn btn-danger" data-x="all">すべての回とプランを削除</button></div>', { title: '分割払いの削除' });
       body.addEventListener('click', (e) => {
@@ -332,7 +344,7 @@
     render(params) {
       // 直接 #/input で来たときはホームを出してシートを開く
       setTimeout(() => {
-        open({ type: params.type, id: params.id });
+        open({ type: params.type, id: params.id, tplId: params.tpl });
         history.replaceState(null, '', '#/home');
       }, 0);
       return KB.views.home.render(params);

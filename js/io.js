@@ -48,7 +48,8 @@
     const newCats = {}, newAccs = {};
     const findCat = (name, type) => {
       if (!name) return null;
-      const c = s.categories.find((x) => x.name === name && x.type === type) || s.categories.find((x) => x.name === name);
+      // 種類（収入/支出）が違う同名カテゴリには入れない
+      const c = s.categories.find((x) => x.name === name && x.type === type);
       if (c) return c.id;
       const key = type + ':' + name;
       if (!newCats[key]) newCats[key] = { id: U.uid('c_'), type, name: name.slice(0, 20), icon: type === 'income' ? '💴' : '📦', color: '#8a8f98', order: 900, archived: false };

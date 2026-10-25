@@ -53,7 +53,9 @@
 
   function form(id) {
     const s = ST().state;
-    const r = id ? s.recurring.find((x) => x.id === id) : { name: '', type: 'expense', amount: '', day: Number(U.today().slice(8)), categoryId: null, accountId: (ST().accs()[0] || {}).id, toAccountId: null, method: '', payee: '', memo: '', tags: [], startMonth: U.thisMonth(), endMonth: null, active: true };
+    // 保存されているデータを直接書き換えないよう、コピーを編集する
+    const found = id ? s.recurring.find((x) => x.id === id) : null;
+    const r = found ? Object.assign({}, found, { tags: (found.tags || []).slice() }) : { name: '', type: 'expense', amount: '', day: Number(U.today().slice(8)), categoryId: null, accountId: (ST().accs()[0] || {}).id, toAccountId: null, method: '', payee: '', memo: '', tags: [], startMonth: U.thisMonth(), endMonth: null, active: true };
     const st = { type: r.type };
     const body = KB.ui.modal('<form id="rf" novalidate></form>', { title: id ? '定期を編集' : '定期を追加' });
     const f = body.querySelector('#rf');
@@ -67,8 +69,8 @@
         '<div class="field"><label for="r-start">開始月</label><input id="r-start" type="month" value="' + h(r.startMonth) + '"></div>' +
         '<div class="field"><label for="r-end">終了月（任意）</label><input id="r-end" type="month" value="' + h(r.endMonth || '') + '"></div></div>' +
         (st.type !== 'transfer' ? '<div class="field"><label for="r-cat">カテゴリ</label><select id="r-cat">' + KB.ui.options(cats, r.categoryId) + '</select></div>' : '') +
-        '<div class="grid-2"><div class="field"><label for="r-acc">' + (st.type === 'transfer' ? '振替元' : '口座') + '</label><select id="r-acc">' + KB.ui.options(ST().accs(), r.accountId) + '</select></div>' +
-        (st.type === 'transfer' ? '<div class="field"><label for="r-to">振替先</label><select id="r-to">' + KB.ui.options(ST().accs(), r.toAccountId, { empty: '選んでください' }) + '</select></div>'
+        '<div class="grid-2"><div class="field"><label for="r-acc">' + (st.type === 'transfer' ? '振替元' : '口座') + '</label><select id="r-acc">' + KB.ui.accOptions(r.accountId) + '</select></div>' +
+        (st.type === 'transfer' ? '<div class="field"><label for="r-to">振替先</label><select id="r-to">' + KB.ui.accOptions(r.toAccountId, { empty: '選んでください' }) + '</select></div>'
           : '<div class="field"><label for="r-method">支払い方法</label><select id="r-method"><option value="">（なし）</option>' + ST().METHODS.map((m) => '<option' + (m === r.method ? ' selected' : '') + '>' + h(m) + '</option>').join('') + '</select></div>') + '</div>' +
         '<div class="field"><label for="r-memo">メモ</label><input id="r-memo" maxlength="200" value="' + h(r.memo || '') + '"></div>' +
         '<div class="field"><label for="r-tags">タグ</label><input id="r-tags" value="' + h((r.tags || []).map((g) => '#' + g).join(' ')) + '"></div>' +
@@ -115,7 +117,15 @@
       KB.ui.act(id ? '定期の編集' : '定期の追加', (s2) => {
         const rec = { name: r.name, type: st.type, amount: amt, day: r.day, categoryId: st.type === 'transfer' ? null : r.categoryId, accountId: r.accountId, toAccountId: st.type === 'transfer' ? r.toAccountId : null,
           method: st.type === 'transfer' ? '' : r.method, payee: r.payee || '', memo: r.memo, tags: r.tags, startMonth: r.startMonth, endMonth: r.endMonth, active: r.active };
-        if (id) Object.assign(s2.recurring.find((x) => x.id === id), rec);
+        if (id) {
+          const old = s2.recurring.find((x) => x.id === id);
+          // 停止→再開のときは、止めていた間の分をさかのぼって登録しない（今月以降から）
+          if (!old.active && rec.active) {
+            const prevMonthEnd = U.addDays(U.thisMonth() + '-01', -1);
+            if (!old.lastDate || old.lastDate < prevMonthEnd) old.lastDate = prevMonthEnd;
+          }
+          Object.assign(old, rec);
+        }
         else s2.recurring.push(Object.assign({ id: U.uid('r_'), lastDate: null }, rec));
         n = C().generateRecurring(s2);
       }, (id ? '定期を更新しました' : '定期を追加しました'));
@@ -133,7 +143,7 @@
       else if (b.dataset.x === 'add-inst') KB.views.input.open({ type: 'expense', mode: 'installment' });
       else if (b.dataset.delInst) {
         const t = ST().state.transactions.find((x) => x.installment && x.installment.planId === b.dataset.delInst);
-        if (t) KB.views.input.remove([t.id]);
+        if (t) KB.views.input.remove([t.id], { planOnly: true });
         else KB.ui.act('分割払いの削除', (s) => { s.installments = s.installments.filter((p) => p.id !== b.dataset.delInst); });
       }
     });

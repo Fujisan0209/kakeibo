@@ -25,7 +25,14 @@
         '<span class="num' + (b < 0 ? ' neg-text' : '') + '">' + h(U.yen(b)) + '</span>' +
         '<a class="btn btn-small" href="#/list?accountId=' + encodeURIComponent(a.id) + '">明細</a><button class="btn btn-small" data-edit-acc="' + h(a.id) + '">編集</button></li>';
     });
-    html += '</ul><div class="btn-row"><button class="btn" data-x="transfer">⇄ 口座間の振替を記録</button></div>' +
+    html += '</ul>';
+    const hidden = ST().state.accounts.filter((a) => a.archived);
+    if (hidden.length) {
+      html += '<details class="hidden-accs"><summary>非表示の口座（' + hidden.length + '）</summary><ul class="acc-list">' + hidden.map((a) =>
+        '<li class="acc-row is-off"><span class="acc-icon" aria-hidden="true">' + KIND_ICON[a.kind] + '</span><span class="grow"><strong>' + h(a.name) + '</strong><span class="muted small">非表示・総資産には含みます</span></span>' +
+        '<span class="num">' + h(U.yen(bal[a.id] || 0)) + '</span><button class="btn btn-small" data-edit-acc="' + h(a.id) + '">編集</button></li>').join('') + '</ul></details>';
+    }
+    html += '<div class="btn-row"><button class="btn" data-x="transfer">⇄ 口座間の振替を記録</button></div>' +
       '<p class="hint">振替（ATM引き出し、チャージ、カードの引き落としなど）は、収入・支出の集計には含めません。</p></section>';
 
     // クレジットカード
@@ -41,9 +48,9 @@
           html += '<div class="table-wrap"><table class="table"><thead><tr><th scope="col">支払日</th><th scope="col">利用期間</th><th scope="col" class="num">金額</th><th scope="col">状態</th><th scope="col"><span class="sr-only">操作</span></th></tr></thead><tbody>';
           fc.forEach((f) => {
             html += '<tr><td>' + h(U.fmtDate(f.payDate)) + '</td><td class="small">' + h(f.start.slice(5).replace('-', '/')) + '〜' + h(f.end.slice(5).replace('-', '/')) + '</td>' +
-              '<td class="num">' + h(U.yen(f.amount)) + '</td><td>' + (f.closed ? '確定' : '利用中（見込み）') +
+              '<td class="num">' + h(U.yen(f.amount)) + (f.paid ? '<br><small class="muted">記録済み ' + h(U.yen(f.paid)) + '</small>' : '') + '</td><td>' + (f.amount > 0 && f.remaining === 0 ? '✅ 引き落とし記録済み' : f.closed ? '確定' : '利用中（見込み）') +
               (f.shortage ? '<br><span class="level-badge level-over">⛔ ' + h(f.payAccount.name) + 'の残高不足見込み（' + h(U.yen(f.payAccountBalance)) + '）</span>' : '') + '</td>' +
-              '<td>' + (f.amount > 0 ? '<button class="btn btn-small" data-pay="' + h(a.id) + '" data-amount="' + f.amount + '" data-date="' + h(f.payDate) + '">引き落としを記録</button>' : '') + '</td></tr>';
+              '<td>' + (f.remaining > 0 ? '<button class="btn btn-small" data-pay="' + h(a.id) + '" data-amount="' + f.remaining + '" data-date="' + h(f.payDate) + '">引き落としを記録</button>' : '') + '</td></tr>';
           });
           html += '</tbody></table></div>';
         }
@@ -92,7 +99,7 @@
       '<div class="field"><label for="a-close">締め日</label><select id="a-close">' + dayOpts(c.closingDay) + '</select></div>' +
       '<div class="field"><label for="a-payoff">支払月</label><select id="a-payoff"><option value="1"' + (c.payMonthOffset !== 2 ? ' selected' : '') + '>翌月</option><option value="2"' + (c.payMonthOffset === 2 ? ' selected' : '') + '>翌々月</option></select></div>' +
       '<div class="field"><label for="a-pay">支払日</label><select id="a-pay">' + dayOpts(c.payDay) + '</select></div>' +
-      '<div class="field"><label for="a-payacc">引き落とし口座</label><select id="a-payacc">' + KB.ui.options(ST().accs().filter((x) => x.id !== id && x.kind !== 'card'), c.payAccountId, { empty: '（未設定）' }) + '</select></div></div></fieldset>' +
+      '<div class="field"><label for="a-payacc">引き落とし口座</label><select id="a-payacc">' + KB.ui.options(ST().state.accounts.filter((x) => x.id !== id && x.kind !== 'card' && (!x.archived || x.id === c.payAccountId)), c.payAccountId, { empty: '（未設定）' }) + '</select></div></div></fieldset>' +
       '<p class="form-error" role="alert" id="a-err"></p><div class="btn-row">' +
       (id ? (used ? '<button type="button" class="btn btn-danger-ghost" data-archive>' + (a.archived ? '再表示する' : '非表示にする') + '</button>' : '<button type="button" class="btn btn-danger-ghost" data-del>削除</button>') : '') +
       '<span class="spacer"></span><button class="btn btn-primary">保存</button></div>' +

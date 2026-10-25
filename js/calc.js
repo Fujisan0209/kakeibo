@@ -169,10 +169,10 @@
 
   function budgetStatus(ym) {
     ym = ym || U.thisMonth();
-    return KB.store.cats('expense', true)
+    return KB.store.cats('expense')
       .map((c) => {
         const budget = budgetAmount(c.id, ym);
-        if (budget === null || (budget === 0 && c.archived)) return null;
+        if (budget === null || c.archived) return null;
         const carry = carryIn(c.id, ym);
         const available = budget + carry;
         const { spent, scheduled } = catSpent(c.id, ym);
@@ -191,16 +191,19 @@
     const lastDay = ym + '-' + U.pad(U.daysInMonth(y, m));
     const daysLeft = U.dayDiff(today, lastDay) + 1; // 今日を含む
     // まだ登録されていない今月の定期支出（予算対象カテゴリ）も差し引く
-    const budgeted = new Set(rows.map((r) => r.cat.id));
-    let upcoming = 0;
+    const upcoming = {};
     upcomingRecurring(U.addDays(today, 1), lastDay).forEach((t) => {
-      if (t.type === 'expense' && budgeted.has(t.categoryId)) upcoming += t.amount;
+      if (t.type === 'expense') upcoming[t.categoryId] = (upcoming[t.categoryId] || 0) + t.amount;
     });
-    const available = rows.reduce((x, r) => x + r.available, 0);
-    const spent = rows.reduce((x, r) => x + r.spent, 0);
-    const scheduled = rows.reduce((x, r) => x + r.scheduled, 0) + upcoming;
-    const rest = available - spent - scheduled;
-    return { available, spent, scheduled, rest, daysLeft, perDay: rest > 0 ? Math.floor(rest / daysLeft) : 0 };
+    let available = 0, spent = 0, scheduled = 0, rest = 0, over = 0;
+    rows.forEach((r) => {
+      const sch = r.scheduled + (upcoming[r.cat.id] || 0);
+      const left = r.available - r.spent - sch;
+      available += r.available; spent += r.spent; scheduled += sch;
+      // あるカテゴリの超過で、ほかのカテゴリの残りが消えないようにする
+      if (left > 0) rest += left; else over -= left;
+    });
+    return { available, spent, scheduled, rest, over, daysLeft, perDay: Math.floor(rest / daysLeft) };
   }
 
   // ---- 定期（固定費・定期収入）----
@@ -227,13 +230,17 @@
       createdAt: now, updatedAt: now,
     };
   }
+  // 次に登録する範囲の始まり：最後に登録した月の翌月1日（日付を変えても同じ月に2回登録しない）
+  function nextFrom(r) {
+    return r.lastDate ? U.addMonths(r.lastDate.slice(0, 7), 1) + '-01' : r.startMonth + '-01';
+  }
   // 今日までの未登録分を作る。戻り値は作った件数
   function generateRecurring(s) {
     const today = U.today();
     let n = 0;
     for (const r of s.recurring) {
       if (!r.active) continue;
-      const from = r.lastDate ? U.addDays(r.lastDate, 1) : r.startMonth + '-01';
+      const from = nextFrom(r);
       const dates = occurrences(r, from, today);
       for (const d of dates) {
         s.transactions.push(recurringTx(r, d));
@@ -248,7 +255,8 @@
     const out = [];
     for (const r of S().recurring) {
       if (!r.active) continue;
-      const start = r.lastDate && U.addDays(r.lastDate, 1) > from ? U.addDays(r.lastDate, 1) : from;
+      const nf = nextFrom(r);
+      const start = nf > from ? nf : from;
       occurrences(r, start, to).forEach((d) => out.push(Object.assign(recurringTx(r, d), { virtual: true })));
     }
     return out;
@@ -304,9 +312,18 @@
     const today = U.today();
     const out = [];
     const cur = U.thisMonth();
+    // カードへの振替（引き落とし）。未登録の定期の振替も含める
+    const pays = S().transactions.filter((t) => t.type === 'transfer' && t.toAccountId === acc.id)
+      .concat(upcomingRecurring(U.addDays(today, 1), U.addDays(today, 120)).filter((t) => t.type === 'transfer' && t.toAccountId === acc.id));
     for (let i = -3; i <= 1; i++) {
-      const st = statement(acc, U.addMonths(cur, i));
-      if (st.payDate >= today && st.start <= U.addDays(today, 40)) out.push(st);
+      const ym = U.addMonths(cur, i);
+      const st = statement(acc, ym);
+      if (!(st.payDate >= today && st.start <= U.addDays(today, 40))) continue;
+      // 締め日の翌日〜次の締め日までの振替を、この請求への支払いとみなす
+      const nextEnd = closingDate(U.addMonths(ym, 1), acc.card);
+      st.paid = pays.filter((t) => t.date > st.end && t.date <= nextEnd).reduce((x, t) => x + t.amount, 0);
+      st.remaining = Math.max(0, st.amount - st.paid);
+      out.push(st);
     }
     // 引き落とし口座の残高が足りるか（支払日時点の見込み）
     const payAcc = KB.store.acc(acc.card.payAccountId);
@@ -314,7 +331,8 @@
       if (!payAcc) return;
       st.payAccount = payAcc;
       st.payAccountBalance = projectedBalance(payAcc.id, st.payDate);
-      st.shortage = st.amount > 0 && st.payAccountBalance < st.amount;
+      // 記録済みの引き落としは見込み残高に入っているので、残りの額だけで判定する
+      st.shortage = st.remaining > 0 && st.payAccountBalance < st.remaining;
     });
     return out;
   }
@@ -334,8 +352,9 @@
     return cached('varDaily', () => {
       const today = U.today();
       const tx = sorted();
-      if (!tx.length) return 0;
-      const first = tx[0].date;
+      const firstTx = tx.find((t) => t.type === 'expense' && !t.recurringId && !t.installment);
+      if (!firstTx) return 0;
+      const first = firstTx.date;
       let from = U.addDays(today, -89);
       if (first > from) from = first;
       const days = Math.max(1, U.dayDiff(from, today) + 1);
@@ -553,7 +572,7 @@
   KB.calc = {
     month, monthSummary, balances, totalAssets, assetTrend, delta,
     budgetAmount, setBudget, budgetStatus, carryIn, dailyAllowance, level,
-    occurrences, generateRecurring, upcomingRecurring, splitAmounts, installmentTxs,
+    occurrences, nextFrom, generateRecurring, upcomingRecurring, splitAmounts, installmentTxs,
     statement, cardForecast, projectedBalance, nextBusinessDay, variableDaily, forecast,
     range, ranking, compare, calendar, yearReport, filter, allTags, tagSummary, payees, normalizeName,
     goalProgress, streak, BADGES, checkBadges,

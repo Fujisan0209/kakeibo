@@ -96,7 +96,8 @@
   }
   function tplForm(id) {
     const s = ST().state;
-    const t = id ? s.templates.find((x) => x.id === id) : { name: '', type: 'expense', amount: '', categoryId: null, accountId: (ST().accs()[0] || {}).id, toAccountId: null, method: '', payee: '', memo: '', tags: [] };
+    const found = id ? s.templates.find((x) => x.id === id) : null;
+    const t = found ? Object.assign({}, found, { tags: (found.tags || []).slice() }) : { name: '', type: 'expense', amount: '', categoryId: null, accountId: (ST().accs()[0] || {}).id, toAccountId: null, method: '', payee: '', memo: '', tags: [] };
     const st = { type: t.type };
     const body = KB.ui.modal('<form id="tf" novalidate></form>', { title: id ? 'テンプレートを編集' : 'テンプレートを追加' });
     const f = body.querySelector('#tf');
@@ -105,8 +106,8 @@
         '<div class="grid-2"><div class="field"><label for="t-name">ボタンの名前</label><input id="t-name" maxlength="20" value="' + h(t.name) + '"></div>' +
         '<div class="field"><label for="t-amt">金額（円）</label><input id="t-amt" inputmode="numeric" value="' + h(t.amount === '' ? '' : U.fmt(t.amount)) + '"></div></div>' +
         (st.type !== 'transfer' ? '<div class="field"><label for="t-cat">カテゴリ</label><select id="t-cat">' + KB.ui.options(ST().cats(st.type), t.categoryId) + '</select></div>' : '') +
-        '<div class="grid-2"><div class="field"><label for="t-acc">口座</label><select id="t-acc">' + KB.ui.options(ST().accs(), t.accountId) + '</select></div>' +
-        (st.type === 'transfer' ? '<div class="field"><label for="t-to">振替先</label><select id="t-to">' + KB.ui.options(ST().accs(), t.toAccountId, { empty: '選んでください' }) + '</select></div>'
+        '<div class="grid-2"><div class="field"><label for="t-acc">口座</label><select id="t-acc">' + KB.ui.accOptions(t.accountId) + '</select></div>' +
+        (st.type === 'transfer' ? '<div class="field"><label for="t-to">振替先</label><select id="t-to">' + KB.ui.accOptions(t.toAccountId, { empty: '選んでください' }) + '</select></div>'
           : '<div class="field"><label for="t-method">支払い方法</label><select id="t-method"><option value="">（口座に合わせる）</option>' + ST().METHODS.map((m) => '<option' + (m === t.method ? ' selected' : '') + '>' + h(m) + '</option>').join('') + '</select></div>') + '</div>' +
         (st.type !== 'transfer' ? '<div class="field"><label for="t-payee">お店・相手</label><input id="t-payee" maxlength="60" value="' + h(t.payee || '') + '"></div>' : '') +
         '<div class="field"><label for="t-memo">メモ</label><input id="t-memo" maxlength="200" value="' + h(t.memo || '') + '"></div>' +
@@ -196,7 +197,7 @@
     const s = ST().state;
     const last = s.settings.lastBackupAt;
     return '<section class="card"><h2 class="card-title">バックアップ（JSON）</h2>' +
-      '<p class="muted">すべてのデータ（設定・カテゴリ・口座・明細・予算など）を1つのファイルに保存します。' + (last ? '最後のバックアップ：' + h(U.fmtDate(last.slice(0, 10), true)) : 'まだバックアップしていません。') + '</p>' +
+      '<p class="muted">すべてのデータ（設定・カテゴリ・口座・明細・予算など）を1つのファイルに保存します。' + (last ? '最後のバックアップ：' + h(U.fmtDate(KB.ui.localDate(last), true)) : 'まだバックアップしていません。') + '</p>' +
       '<label class="check"><input type="checkbox" id="with-receipts" checked> レシート画像も含める（ファイルが大きくなります）</label>' +
       '<div class="btn-row"><button class="btn btn-primary" data-x="backup">バックアップを保存</button><label class="btn file-btn">バックアップから復元<input type="file" accept=".json,application/json" id="restore-file" hidden></label></div>' +
       '<p class="hint">データはこのブラウザの中にしか保存されていません。ブラウザのデータ消去や端末の故障で消えるため、定期的にバックアップしてください。</p></section>' +

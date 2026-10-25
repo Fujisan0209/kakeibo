@@ -198,6 +198,8 @@
     }
     idbWrite = idbWrite.then(() => KB.idb.put('kv', KEY, json)).then(() => {
       lastSaveError = null;
+      // IndexedDB には storage イベントがないので、ほかのタブに知らせる
+      if (channel) try { channel.postMessage({ type: 'saved' }); } catch (_) { /* ignore */ }
       try { localStorage.removeItem(KEY); } catch (_) { /* ignore */ }
     }, (e) => {
       lastSaveError = e;
@@ -273,6 +275,22 @@
       Object.keys(s).forEach((k) => delete s[k]);
       Object.assign(s, next);
     });
+  }
+
+  // IndexedDB 保存時のタブ間通知
+  const channel = 'BroadcastChannel' in window ? new BroadcastChannel('kakeibo') : null;
+  if (channel) {
+    channel.onmessage = async (e) => {
+      if (!e.data || e.data.type !== 'saved' || readOnly) return;
+      try {
+        backend = 'idb';
+        const raw = await KB.idb.get('kv', KEY);
+        if (!raw) return;
+        state = migrate(JSON.parse(raw));
+        version++;
+        emit('change', { label: '別タブの変更', external: true });
+      } catch (err) { console.error(err); }
+    };
   }
 
   // 別タブで変更されたら読み込み直す

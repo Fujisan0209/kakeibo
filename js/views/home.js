@@ -17,7 +17,7 @@
     }
     const n = s.transactions.length;
     const last = s.settings.lastBackupAt;
-    if (n >= 20 && (!last || U.dayDiff(last.slice(0, 10), U.today()) >= 30)) {
+    if (n >= 20 && (!last || U.dayDiff(KB.ui.localDate(last), U.today()) >= 30)) {
       out += '<div class="banner banner-warn" role="status">💾 ' + (last ? '最後のバックアップから30日以上たっています。' : 'まだバックアップがありません。') +
         'データはこのブラウザの中にしかありません。<a class="btn btn-small" href="#/settings?tab=data">バックアップ</a></div>';
     }
@@ -60,9 +60,9 @@
     // 1日あたり
     html += '<a class="card card-link" href="#/budget"><h2 class="card-title">今月あと1日</h2>';
     if (da) {
-      html += '<p class="big-number' + (da.rest < 0 ? ' is-neg' : '') + '">' + h(U.yen(da.perDay)) + '<small> / 日</small></p>' +
+      html += '<p class="big-number' + (da.perDay <= 0 ? ' is-neg' : '') + '">' + h(U.yen(da.perDay)) + '<small> / 日</small></p>' +
         '<p class="muted">予算の残り ' + h(U.yen(da.rest)) + '・残り ' + da.daysLeft + ' 日' + (da.scheduled ? '（予定 ' + h(U.yen(da.scheduled)) + ' を差し引き済み）' : '') + '</p>' +
-        (da.rest < 0 ? '<p class="level-badge level-over">⛔ 予算を ' + h(U.yen(-da.rest)) + ' 超えています</p>' : '');
+        (da.over > 0 ? '<p class="level-badge level-over">⛔ 予算を超えたカテゴリが合計 ' + h(U.yen(da.over)) + ' 超過</p>' : '');
     } else {
       html += '<p class="muted">予算を設定すると、1日に使える金額がわかります。</p><span class="btn btn-small">予算を設定</span>';
     }
@@ -80,8 +80,8 @@
     html += '<a class="card card-link" href="#/accounts"><h2 class="card-title">総資産</h2><p class="big-number' + (assets < 0 ? ' is-neg' : '') + '">' + h(U.yen(assets)) + '</p>' +
       (prev ? '<p class="muted">先月末から ' + KB.ui.net(assets - prev.total) + '</p>' : '');
     cards.forEach((a) => {
-      const f = C().cardForecast(a).find((x) => x.amount > 0);
-      if (f) html += '<p class="muted">💳 ' + h(a.name) + '：' + h(U.fmtDate(f.payDate)) + ' に ' + h(U.yen(f.amount)) + (f.closed ? '' : '（見込み）') + (f.shortage ? ' <span class="level-badge level-over">残高不足</span>' : '') + '</p>';
+      const f = C().cardForecast(a).find((x) => x.remaining > 0);
+      if (f) html += '<p class="muted">💳 ' + h(a.name) + '：' + h(U.fmtDate(f.payDate)) + ' に ' + h(U.yen(f.remaining)) + (f.closed ? '' : '（見込み）') + (f.shortage ? ' <span class="level-badge level-over">残高不足</span>' : '') + '</p>';
     });
     html += '</a>';
     // 連続記録

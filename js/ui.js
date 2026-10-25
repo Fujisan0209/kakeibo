@@ -70,8 +70,10 @@
     dlg.querySelector('[data-close]').addEventListener('click', () => closeModal());
     modalClose = opts.onClose || null;
     dlg.showModal();
-    const first = dlg.querySelector('[autofocus]') || dlg.querySelector('.modal-body input, .modal-body select, .modal-body button');
-    if (first && !matchMedia('(pointer: coarse)').matches) first.focus();
+    // 金額欄など [autofocus] はスマホでも選ぶ。それ以外の最初の要素はキーボードが出ないよう PC だけ
+    const auto = dlg.querySelector('[autofocus]');
+    const first = auto || (!matchMedia('(pointer: coarse)').matches && dlg.querySelector('.modal-body input, .modal-body select, .modal-body button'));
+    if (first) first.focus();
     return dlg.querySelector('.modal-body');
   }
   function closeModal() {
@@ -246,6 +248,19 @@
     return s;
   }
 
+  // 口座の選択肢。非表示の口座でも、いま選ばれているものは残す（編集で勝手に変わらないように）
+  function accOptions(selected, opts) {
+    const list = KB.store.accs().slice();
+    const cur = KB.store.acc(selected);
+    if (cur && cur.archived) list.push(cur);
+    return options(list.filter((a) => !(opts && opts.exclude && a.id === opts.exclude)), selected, opts);
+  }
+  // ISO 日時（UTC）をローカルの日付に
+  function localDate(iso) {
+    const d = new Date(iso);
+    return isNaN(d) ? '' : U.dateStr(d);
+  }
+
   function applyTheme() {
     const t = KB.store.state.settings.theme;
     const root = document.documentElement;
@@ -258,6 +273,6 @@
 
   KB.ui = {
     parseHash, render, refresh, go, modal, closeModal, initModal, confirm: confirmDlg, toast, act, doUndo, afterChange,
-    money, net, catIcon, txTitle, txRow, txList, progress, options, applyTheme, TYPE_LABEL,
+    money, net, catIcon, txTitle, txRow, txList, progress, options, accOptions, localDate, applyTheme, TYPE_LABEL,
   };
 })();

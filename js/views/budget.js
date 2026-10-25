@@ -27,7 +27,7 @@
       html += '<section class="cards-3">' +
         '<div class="stat"><span class="stat-label">予算合計' + (s.settings.carryover ? '（繰越込み）' : '') + '</span><span class="stat-value">' + h(U.yen(tot.available)) + '</span></div>' +
         '<div class="stat"><span class="stat-label">使った額</span><span class="stat-value">' + h(U.yen(tot.spent)) + '</span>' + KB.ui.progress(tot.available ? tot.spent / tot.available : 0, lvl, '予算全体の使用率') + '</div>' +
-        (isCur && da ? '<div class="stat stat-accent"><span class="stat-label">今月あと1日</span><span class="stat-value">' + h(U.yen(da.perDay)) + '</span><span class="muted small">残り ' + da.daysLeft + ' 日・予定と未登録の固定費 ' + h(U.yen(da.scheduled)) + ' を除く</span></div>'
+        (isCur && da ? '<div class="stat stat-accent"><span class="stat-label">今月あと1日</span><span class="stat-value">' + h(U.yen(da.perDay)) + '</span><span class="muted small">残り ' + da.daysLeft + ' 日・予定と未登録の固定費 ' + h(U.yen(da.scheduled)) + ' を除く' + (da.over ? '・超過したカテゴリの分は含めない' : '') + '</span></div>'
           : '<div class="stat"><span class="stat-label">残り</span><span class="stat-value">' + KB.ui.net(tot.available - tot.spent) + '</span></div>') +
         '</section>';
     }

@@ -106,6 +106,91 @@ async function newPage(b, opts) {
     await p.context().close();
   }
 
+  // ---------- 1b. レビューで見つかった不具合の回帰確認 ----------
+  console.log('回帰確認');
+  {
+    const p = await newPage(b);
+    await p.clock.setFixedTime(new Date('2024-06-20T10:00:00'));
+    await p.goto(BASE);
+    await p.click('text=空の状態で始める');
+    const r = await p.evaluate(() => {
+      const U = KB.util, C = KB.calc, S = KB.store;
+      const tx = (o) => Object.assign({ id: U.uid('t_'), categoryId: null, toAccountId: null, method: '', payee: '', memo: '', tags: [], receiptId: null, recurringId: null, installment: null, createdAt: '', updatedAt: '' }, o);
+      const out = {};
+      // 定期の日付を5日→25日に変えても、同じ月に2回登録しない
+      S.mutate('t', (s) => {
+        s.recurring.push({ id: 'r2', name: 'サブスク', type: 'expense', amount: 1000, day: 25, categoryId: 'c_ex7', accountId: 'a_card', toAccountId: null, method: '', memo: '', tags: [], startMonth: '2024-06', endMonth: null, lastDate: '2024-06-05', active: true });
+        out.dayShift = C.generateRecurring(s);
+      });
+      out.dayShiftUpcoming = C.upcomingRecurring('2024-06-21', '2024-07-31').filter((t) => t.recurringId === 'r2').map((t) => t.date);
+      // カードの引き落としを記録したら、その請求は残り0・残高不足なし
+      S.mutate('t', (s) => {
+        s.accounts.find((a) => a.id === 'a_bank').initialBalance = 100000;
+        s.transactions.push(tx({ type: 'expense', date: '2024-06-10', amount: 80000, categoryId: 'c_ex0', accountId: 'a_card' })); // 5/16〜6/15 → 7/10払い
+      });
+      const before = C.cardForecast(S.acc('a_card')).find((f) => f.end === '2024-06-15');
+      S.mutate('t', (s) => { s.transactions.push(tx({ type: 'transfer', date: '2024-07-10', amount: 80000, accountId: 'a_bank', toAccountId: 'a_card' })); });
+      const after = C.cardForecast(S.acc('a_card')).find((f) => f.end === '2024-06-15');
+      out.card = { beforeRemaining: before.remaining, beforeShort: before.shortage, afterRemaining: after.remaining, afterShort: after.shortage };
+      // 1日あたり：住居の超過で食費の残りが消えない
+      S.mutate('t', (s) => {
+        C.setBudget(s, 'c_ex0', '2024-06', 100000);
+        C.setBudget(s, 'c_ex3', '2024-06', 10000);
+        s.transactions.push(tx({ type: 'expense', date: '2024-06-01', amount: 40000, categoryId: 'c_ex3', accountId: 'a_bank' }));
+      });
+      out.daily = C.dailyAllowance(); // 食費 100000-80000=20000 / 11日
+      // ふだんの支出の平均：昔からの定期があっても、手入力の最初の日から割る
+      S.mutate('t', (s) => {
+        s.transactions = s.transactions.filter((t) => t.type !== 'expense');
+        s.transactions.push(tx({ type: 'expense', date: '2023-01-05', amount: 5000, categoryId: 'c_ex3', accountId: 'a_bank', recurringId: 'rx' }));
+        for (let d = 11; d <= 20; d++) s.transactions.push(tx({ type: 'expense', date: '2024-06-' + d, amount: 3000, categoryId: 'c_ex0', accountId: 'a_cash' }));
+      });
+      out.varDaily = C.variableDaily();
+      // 非表示カテゴリの予算は対象外
+      S.mutate('t', (s) => { s.categories.find((c) => c.id === 'c_ex3').archived = true; });
+      out.budgetCats = C.budgetStatus('2024-06').map((r) => r.cat.id);
+      // CSV：「収入,その他」は支出の「その他」に入らない
+      const plan = KB.io.planCSV('日付,種類,金額,カテゴリ\n2024-06-01,収入,50000,その他\n');
+      out.csvCat = { newCats: plan.newCats.map((c) => c.type + ':' + c.name), itemCat: plan.items[0].categoryId !== 'c_ex13' };
+      return out;
+    });
+    check('定期の日付変更で同じ月に二重登録しない', r.dayShift === 0 && JSON.stringify(r.dayShiftUpcoming) === '["2024-07-25"]', [r.dayShift, r.dayShiftUpcoming]);
+    check('カードの引き落とし記録後は残り0・残高不足なし', r.card.beforeRemaining === 80000 && r.card.afterRemaining === 0 && !r.card.afterShort, r.card);
+    check('1日あたりはカテゴリ間で相殺しない', r.daily.perDay === Math.floor(20000 / 11) && r.daily.over === 30000, r.daily);
+    check('ふだんの支出は手入力の最初の日から平均', r.varDaily === 3000, r.varDaily);
+    check('非表示カテゴリの予算は対象外', !r.budgetCats.includes('c_ex3'), r.budgetCats);
+    check('CSV の収入行は支出カテゴリに入らない', r.csvCat.newCats.join() === 'income:その他' && r.csvCat.itemCat, r.csvCat);
+    // 非表示口座の明細を編集しても口座が変わらない
+    const acc = await p.evaluate(() => {
+      KB.store.mutate('t', (s) => {
+        s.transactions.push({ id: 'h1', type: 'expense', date: '2024-06-19', amount: 500, categoryId: 'c_ex0', accountId: 'a_emoney', toAccountId: null, method: '', payee: '', memo: '', tags: [], receiptId: null, recurringId: null, installment: null, createdAt: '', updatedAt: '' });
+        s.accounts.find((a) => a.id === 'a_emoney').archived = true;
+      });
+      KB.views.input.open({ id: 'h1' });
+    });
+    await p.click('#txform button[type=submit]');
+    await p.waitForTimeout(200);
+    check('非表示口座の明細を編集しても口座が変わらない', (await p.evaluate(() => KB.store.state.transactions.find((t) => t.id === 'h1').accountId)) === 'a_emoney');
+    await p.goto(BASE + '#/accounts');
+    await p.waitForTimeout(200);
+    check('非表示の口座を一覧から再表示できる', (await p.locator('.hidden-accs [data-edit-acc="a_emoney"]').count()) === 1);
+    // 定期を止めて再開しても、止めていた月の分を登録しない
+    const resumed = await p.evaluate(() => {
+      KB.store.mutate('t', (s) => { s.recurring.push({ id: 'r3', name: '家賃', type: 'expense', amount: 70000, day: 5, categoryId: 'c_ex0', accountId: 'a_bank', toAccountId: null, method: '', memo: '', tags: [], startMonth: '2024-01', endMonth: null, lastDate: '2024-03-05', active: false }); });
+      return true;
+    });
+    await p.goto(BASE + '#/plans');
+    await p.waitForTimeout(200);
+    await p.click('[data-edit="r3"]');
+    await p.check('#r-active');
+    await p.click('#rf button.btn-primary');
+    await p.waitForTimeout(200);
+    const dates = await p.evaluate(() => KB.store.state.transactions.filter((t) => t.recurringId === 'r3').map((t) => t.date));
+    check('定期を再開しても止めていた月の分を登録しない', resumed && JSON.stringify(dates) === '["2024-06-05"]', dates);
+    check('エラーなし', !p.errors.length, p.errors);
+    await p.context().close();
+  }
+
   // ---------- 2. 主要な流れ（画面操作）----------
   console.log('主要な流れ');
   {
